@@ -73,6 +73,11 @@ function render_footnote_anchor(tokens, idx, options, env, slf) {
   return ' <a href="#fnref' + id + '" class="footnote-backref">\u21a9\uFE0E</a>';
 }
 
+function render_page_ref(tokens, idx, options, env, slf) {
+  var name = tokens[idx].meta.name;
+  var param = new URLSearchParams({ "page": name });
+  return '<a href="/search?' + param.toString() + '">' + name + '</a>';
+}
 
 module.exports = function footnote_plugin(md) {
   var parseLinkLabel = md.helpers.parseLinkLabel,
@@ -84,6 +89,7 @@ module.exports = function footnote_plugin(md) {
   md.renderer.rules.footnote_open         = render_footnote_open;
   md.renderer.rules.footnote_close        = render_footnote_close;
   md.renderer.rules.footnote_anchor       = render_footnote_anchor;
+  md.renderer.rules.page_ref              = render_page_ref;
 
   // helpers (only used in other rules, no tokens are attached to those)
   md.renderer.rules.footnote_caption      = render_footnote_caption;
@@ -359,9 +365,48 @@ module.exports = function footnote_plugin(md) {
     token = new state.Token('footnote_block_close', '', -1);
     state.tokens.push(token);
   }
+  
+  // Process pages references ([@...])
+  function page_ref(state, silent) {
+    var label,
+        pos,
+        token,
+        max = state.posMax,
+        start = state.pos;
+
+    // should be at least 4 chars - "[@x]"
+    if (start + 3 > max) { return false; }
+
+    if (!state.env.footnotes || !state.env.footnotes.refs) { return false; }
+    if (state.src.charCodeAt(start) !== 0x5B/* [ */) { return false; }
+    if (state.src.charCodeAt(start + 1) !== 0x40/* @ */) { return false; }
+
+    for (pos = start + 2; pos < max; pos++) {
+      if (state.src.charCodeAt(pos) === 0x0A) { return false; }
+      if (state.src.charCodeAt(pos) === 0x5D /* ] */) {
+        break;
+      }
+    }
+
+    if (pos === start + 2) { return false; }
+    if (pos >= max) { return false; }
+    pos++;
+
+    label = state.src.slice(start + 2, pos - 1);
+
+    if (!silent) {
+      token      = state.push('page_ref', '', 0);
+      token.meta = { name: label };
+    }
+
+    state.pos = pos;
+    state.posMax = max;
+    return true;
+  }
 
   md.block.ruler.before('reference', 'footnote_def', footnote_def, { alt: [ 'paragraph', 'reference' ] });
   md.inline.ruler.after('image', 'footnote_inline', footnote_inline);
   md.inline.ruler.after('footnote_inline', 'footnote_ref', footnote_ref);
+  md.inline.ruler.after('footnote_ref', 'page_ref', page_ref);
   md.core.ruler.after('inline', 'footnote_tail', footnote_tail);
 };
