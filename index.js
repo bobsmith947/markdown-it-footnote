@@ -366,40 +366,30 @@ module.exports = function footnote_plugin(md) {
     state.tokens.push(token);
   }
   
-  // Process pages references ([@...])
+  // Process pages references (@[...])
   function page_ref(state, silent) {
-    var label,
-        pos,
+    var labelStart,
+        labelEnd,
         token,
         max = state.posMax,
         start = state.pos;
 
-    // should be at least 4 chars - "[@x]"
-    if (start + 3 > max) { return false; }
+    if (start + 2 >= max) { return false; }
+    if (state.src.charCodeAt(start) !== 0x40/* @ */) { return false; }
+    if (state.src.charCodeAt(start + 1) !== 0x5B/* [ */) { return false; }
 
-    if (!state.env.footnotes || !state.env.footnotes.refs) { return false; }
-    if (state.src.charCodeAt(start) !== 0x5B/* [ */) { return false; }
-    if (state.src.charCodeAt(start + 1) !== 0x40/* @ */) { return false; }
+    labelStart = start + 2;
+    labelEnd = parseLinkLabel(state, start + 1);
 
-    for (pos = start + 2; pos < max; pos++) {
-      if (state.src.charCodeAt(pos) === 0x0A) { return false; }
-      if (state.src.charCodeAt(pos) === 0x5D /* ] */) {
-        break;
-      }
-    }
-
-    if (pos === start + 2) { return false; }
-    if (pos >= max) { return false; }
-    pos++;
-
-    label = state.src.slice(start + 2, pos - 1);
+    // parser failed to find ']', so it's not a valid note
+    if (labelEnd < 0) { return false; }
 
     if (!silent) {
-      token      = state.push('page_ref', '', 0);
-      token.meta = { name: label };
+      token = state.push('page_ref', '', 0);
+      token.meta.name = state.src.slice(labelStart, labelEnd);
     }
 
-    state.pos = pos;
+    state.pos = labelEnd + 1;
     state.posMax = max;
     return true;
   }
