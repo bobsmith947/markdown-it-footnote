@@ -386,7 +386,7 @@ module.exports = function footnote_plugin(md) {
 
     if (!silent) {
       token = state.push('page_ref', '', 0);
-      token.meta.name = state.src.slice(labelStart, labelEnd);
+      token.meta = { name: state.src.slice(labelStart, labelEnd) };
     }
 
     state.pos = labelEnd + 1;
